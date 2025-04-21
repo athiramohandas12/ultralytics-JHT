@@ -55,12 +55,14 @@ __all__ = (
 
 
 class SEBlock(nn.Module):
-    def __init__(self, in_channels, reduction=16):
+    def __init__(self, in_channels, out_channels=None, kernel_size=None, stride=None):  # Accept extra args
         super(SEBlock, self).__init__()
+        self.in_channels = in_channels
+        self.reduction = 16
         self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc1 = nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1)
+        self.fc1 = nn.Conv2d(in_channels, in_channels // self.reduction, kernel_size=1)
         self.relu = nn.ReLU(inplace=True)
-        self.fc2 = nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1)
+        self.fc2 = nn.Conv2d(in_channels // self.reduction, in_channels, kernel_size=1)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -70,6 +72,7 @@ class SEBlock(nn.Module):
         out = self.fc2(out)
         out = self.sigmoid(out)
         return x * out
+
 
 class DFL(nn.Module):
     """
