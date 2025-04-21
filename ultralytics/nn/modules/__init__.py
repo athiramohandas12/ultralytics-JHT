@@ -18,6 +18,7 @@ Examples:
 """
 
 from .block import (
+    
     C1,
     C2,
     C2PSA,
@@ -38,6 +39,7 @@ from .block import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    SEBlock,
     C2fAttn,
     C2fCIB,
     C2fPSA,
@@ -75,6 +77,7 @@ from .conv import (
     LightConv,
     RepConv,
     SpatialAttention,
+    
 )
 from .head import (
     OBB,
@@ -129,6 +132,7 @@ __all__ = (
     "C2",
     "C3",
     "C2f",
+    "SEBlock",
     "C3k2",
     "SCDown",
     "C2fPSA",

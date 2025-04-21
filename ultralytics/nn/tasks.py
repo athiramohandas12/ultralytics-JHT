@@ -27,9 +27,12 @@ from ultralytics.nn.modules import (
     A2C2f,
     AConv,
     ADown,
+    
     Bottleneck,
     BottleneckCSP,
     C2f,
+   
+    SEBlock,
     C2fAttn,
     C2fCIB,
     C2fPSA,
@@ -1380,6 +1383,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C1,
             C2,
             C2f,
+            SEBlock,
             C3k2,
             RepNCSPELAN4,
             ELAN1,
@@ -1406,6 +1410,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C1,
             C2,
             C2f,
+            SEBlock,
             C3k2,
             C2fAttn,
             C3,

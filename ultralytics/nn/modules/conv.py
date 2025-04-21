@@ -190,6 +190,8 @@ class LightConv(nn.Module):
         """
         return self.conv2(self.conv1(x))
 
+# Inside ultralytics/nn/modules/conv.py
+
 
 class DWConv(Conv):
     """Depth-wise convolution module."""

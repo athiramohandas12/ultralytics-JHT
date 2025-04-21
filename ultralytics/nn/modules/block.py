@@ -50,8 +50,26 @@ __all__ = (
     "PSA",
     "SCDown",
     "TorchVision",
+    "SEBlock",
 )
 
+
+class SEBlock(nn.Module):
+    def __init__(self, in_channels, reduction=16):
+        super(SEBlock, self).__init__()
+        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc1 = nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1)
+        self.relu = nn.ReLU(inplace=True)
+        self.fc2 = nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        out = self.global_avg_pool(x)
+        out = self.fc1(out)
+        out = self.relu(out)
+        out = self.fc2(out)
+        out = self.sigmoid(out)
+        return x * out
 
 class DFL(nn.Module):
     """
