@@ -51,8 +51,29 @@ __all__ = (
     "SCDown",
     "TorchVision",
     "SEBlock",
+    "MobileNetV2Backbone",
 )
 
+import torch
+import torch.nn as nn
+import torchvision.models as models
+
+class MobileNetV2Backbone(nn.Module):
+    def __init__(self, pretrained=True):
+        super().__init__()
+        mobilenet = models.mobilenet_v2(pretrained=pretrained).features
+        self.stage1 = mobilenet[:7]   # output stride 8
+        self.stage2 = mobilenet[7:14] # output stride 16
+        self.stage3 = mobilenet[14:]  # output stride 32
+
+    def forward(self, x):
+        x = self.stage1(x)
+        x1 = x
+        x = self.stage2(x)
+        x2 = x
+        x = self.stage3(x)
+        x3 = x
+        return [x1, x2, x3]
 
 class SEBlock(nn.Module):
     def __init__(self, in_channels, out_channels=None, kernel_size=None, stride=None):  # Accept extra args
