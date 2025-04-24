@@ -51,29 +51,43 @@ __all__ = (
     "SCDown",
     "TorchVision",
     "SEBlock",
-    "MobileNetV2Backbone",
+    "CBAM",
 )
 
 import torch
 import torch.nn as nn
 import torchvision.models as models
 
-class MobileNetV2Backbone(nn.Module):
-    def __init__(self, pretrained=True):
+
+class CBAM(nn.Module):
+    def __init__(self, channels, reduction=16, kernel_size=7):
         super().__init__()
-        mobilenet = models.mobilenet_v2(pretrained=pretrained).features
-        self.stage1 = mobilenet[:7]   # output stride 8
-        self.stage2 = mobilenet[7:14] # output stride 16
-        self.stage3 = mobilenet[14:]  # output stride 32
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+
+        self.fc = nn.Sequential(
+            nn.Conv2d(channels, channels // reduction, 1, bias=False),
+            nn.ReLU(),
+            nn.Conv2d(channels // reduction, channels, 1, bias=False)
+        )
+
+        self.sigmoid_channel = nn.Sigmoid()
+
+        self.conv_spatial = nn.Conv2d(2, 1, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
+        self.sigmoid_spatial = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.stage1(x)
-        x1 = x
-        x = self.stage2(x)
-        x2 = x
-        x = self.stage3(x)
-        x3 = x
-        return [x1, x2, x3]
+        avg = self.fc(self.avg_pool(x))
+        max = self.fc(self.max_pool(x))
+        x_channel = self.sigmoid_channel(avg + max) * x
+
+        avg_out = torch.mean(x_channel, dim=1, keepdim=True)
+        max_out, _ = torch.max(x_channel, dim=1, keepdim=True)
+        x_spatial = torch.cat([avg_out, max_out], dim=1)
+        x_spatial = self.sigmoid_spatial(self.conv_spatial(x_spatial))
+
+        return x_channel * x_spatial
+
 
 class SEBlock(nn.Module):
     def __init__(self, in_channels, out_channels=None, kernel_size=None, stride=None):  # Accept extra args

@@ -39,6 +39,7 @@ from .block import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    CBAM,
     SEBlock,
     MobileNetV2Backbone,
     C2fAttn,
