@@ -59,51 +59,42 @@ import torch.nn as nn
 import torchvision.models as models
 
 
-class CBAM(nn.Module):
-    """Convolutional Block Attention Module (CBAM) to enhance YOLO's backbone."""
 
-    def __init__(self, c1, reduction=16, kernel_size=7):
-        """
-        Args:
-            c1 (int): Input channels (number of channels in the feature map).
-            reduction (int): Channel attention reduction factor.
-            kernel_size (int): Kernel size for spatial attention.
-        """
-        super().__init__()
-        
-        # Channel Attention (CA)
-        self.fc = nn.Sequential(
-            nn.Conv2d(c1, c1 // reduction, 1, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(c1 // reduction, c1, 1, bias=False)
-        )
-        self.sigmoid_channel = nn.Sigmoid()
 
-        # Spatial Attention (SA)
-        self.conv_spatial = nn.Conv2d(2, 1, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
-        self.sigmoid_spatial = nn.Sigmoid()
+class SCBAM(nn.Module):
+    def __init__(self, channels, ratio=16, kernel_size=7):
+        super(SCBAM, self).__init__()
 
-    def forward(self, x):
-        """Forward pass with channel and spatial attention."""
-        
         # Channel Attention
-        avg = torch.mean(x, dim=1, keepdim=True)
-        max = torch.max(x, dim=1, keepdim=True)[0]
-        avg_out = self.fc(avg)
-        max_out = self.fc(max)
-        channel_attention = self.sigmoid_channel(avg_out + max_out)
-        x_channel = x * channel_attention
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.channel_fc = nn.Sequential(
+            nn.Conv2d(channels, channels // ratio, kernel_size=1, bias=False),
+            nn.ReLU(),
+            nn.Conv2d(channels // ratio, channels, kernel_size=1, bias=False)
+        )
 
         # Spatial Attention
-        avg_out = torch.mean(x_channel, dim=1, keepdim=True)
-        max_out, _ = torch.max(x_channel, dim=1, keepdim=True)
-        spatial_attention = torch.cat([avg_out, max_out], dim=1)
-        spatial_attention = self.sigmoid_spatial(self.conv_spatial(spatial_attention))
+        self.spatial_conv = nn.Conv2d(2, 1, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
 
-        # Apply Spatial Attention after Channel Attention
-        x_spatial = x_channel * spatial_attention
+        # Shared sigmoid
+        self.sigmoid = nn.Sigmoid()
 
-        return x_spatial
+    def forward(self, x):
+        # Channel Attention
+        avg_out = self.channel_fc(self.avg_pool(x))
+        max_out = self.channel_fc(self.max_pool(x))
+        ca_out = self.sigmoid(avg_out + max_out)
+        x = ca_out * x
+
+        # Spatial Attention
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        sa_input = torch.cat([avg_out, max_out], dim=1)
+        sa_out = self.sigmoid(self.spatial_conv(sa_input))
+        x = sa_out * x
+
+        return x
 
 
 class SEBlock(nn.Module):

@@ -22,14 +22,14 @@ backbone:
   - [-1, 3, C2f, [128, True]]  # 2
   - [-1, 1, Conv, [256, 3, 2]]  # 3-P3/8
   - [-1, 6, C2f, [256, True]]  # 4
-  - [-1, 1, CBAM, [256]]        # 5-P3/8 with CBAM (Apply CBAM after feature extraction)
+  - [-1, 1, SCBAM, [256]]        # 5-P3/8 with CBAM (Apply CBAM after feature extraction)
   - [-1, 1, Conv, [512, 3, 2]]  # 6-P4/16
   - [-1, 6, C2f, [512, True]]  # 7
-  - [-1, 1, CBAM, [512]]        # 8-P4/16 with CBAM
+  - [-1, 1, SCBAM, [512]]        # 8-P4/16 with CBAM
   - [-1, 1, SEBlock, [512]]     # 9-P4/16 with SE Block
   - [-1, 1, Conv, [1024, 3, 2]] # 10-P5/32
   - [-1, 3, C2f, [1024, True]]  # 11
-  - [-1, 1, CBAM, [1024]]       # 12-P5/32 with CBAM
+  - [-1, 1, SCBAM, [1024]]       # 12-P5/32 with CBAM
   - [-1, 1, SEBlock, [1024]]    # 13-P5/32 with SE Block
   - [-1, 1, SPPF, [1024, 5]]    # 14
 
