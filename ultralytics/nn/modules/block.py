@@ -53,7 +53,7 @@ __all__ = (
     "SEBlock",
     "SCBAM",
     "SimAM", 
-    "SMyCoordAttention", 
+    "C2f2CA", 
     "ASPP",
 )
 
@@ -74,34 +74,61 @@ class SimAM(nn.Module):
         d = (x - x.mean(dim=[1,2,3], keepdim=True)).pow(2).sum(dim=[1,2,3], keepdim=True) / n
         return x * torch.sigmoid(d / (d + self.e_lambda))
 
-# CoordAttention
-class SMyCoordAttention(nn.Module):
+class MyCoordAttention(nn.Module):
     def __init__(self, inp, oup, reduction=32):
-        super().__init__()
+        super(MyCoordAttention, self).__init__()
         self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
         self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+        
         mip = max(8, inp // reduction)
-        self.conv1 = nn.Conv2d(inp, mip, 1, stride=1, padding=0)
+
+        self.conv1 = nn.Conv2d(inp, mip, kernel_size=1, stride=1, padding=0)
         self.bn1 = nn.BatchNorm2d(mip)
-        self.act = nn.ReLU()
-        self.conv_h = nn.Conv2d(mip, oup, 1, stride=1, padding=0)
-        self.conv_w = nn.Conv2d(mip, oup, 1, stride=1, padding=0)
+        self.act = nn.Hardswish()
+
+        self.conv_h = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
+        self.conv_w = nn.Conv2d(mip, oup, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
         identity = x
         n, c, h, w = x.size()
         x_h = self.pool_h(x)
         x_w = self.pool_w(x).permute(0, 1, 3, 2)
+
         y = torch.cat([x_h, x_w], dim=2)
         y = self.conv1(y)
         y = self.bn1(y)
         y = self.act(y)
+
         x_h, x_w = torch.split(y, [h, w], dim=2)
         x_w = x_w.permute(0, 1, 3, 2)
+
         a_h = self.conv_h(x_h).sigmoid()
         a_w = self.conv_w(x_w).sigmoid()
+
         out = identity * a_w * a_h
+
         return out
+
+
+class C2f2CA(nn.Module):
+    """C2f block with MyCoordAttention."""
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = nn.Conv2d(c1, c_, 1, 1)
+        self.cv2 = nn.Conv2d(c_ * (n + 1), c2, 1)
+        self.m = nn.ModuleList(nn.Conv2d(c_, c_, 3, 1, 1, groups=g) for _ in range(n))
+        self.attn = MyCoordAttention(c2, c2)
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(len(self.m), 1))
+        for i, m in enumerate(self.m):
+            y.append(m(y[-1]))
+        out = self.cv2(torch.cat(y, 1))
+        return self.attn(out)
+
+
 
 # ASPP
 class ASPP(nn.Module):
