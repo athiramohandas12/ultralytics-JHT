@@ -51,7 +51,10 @@ __all__ = (
     "SCDown",
     "TorchVision",
     "SEBlock",
-    "CBAM",
+    "SCBAM",
+    "SimAM", 
+    "CoordAttention", 
+    "ASPP",
 )
 
 import torch
@@ -60,6 +63,63 @@ import torchvision.models as models
 
 
 
+# SimAM: simple attention
+class SimAM(nn.Module):
+    def __init__(self, e_lambda=1e-4):
+        super().__init__()
+        self.e_lambda = e_lambda
+
+    def forward(self, x):
+        n = x.numel() / x.shape[0]
+        d = (x - x.mean(dim=[1,2,3], keepdim=True)).pow(2).sum(dim=[1,2,3], keepdim=True) / n
+        return x * torch.sigmoid(d / (d + self.e_lambda))
+
+# CoordAttention
+class CoordAttention(nn.Module):
+    def __init__(self, inp, oup, reduction=32):
+        super().__init__()
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+        mip = max(8, inp // reduction)
+        self.conv1 = nn.Conv2d(inp, mip, 1, stride=1, padding=0)
+        self.bn1 = nn.BatchNorm2d(mip)
+        self.act = nn.ReLU()
+        self.conv_h = nn.Conv2d(mip, oup, 1, stride=1, padding=0)
+        self.conv_w = nn.Conv2d(mip, oup, 1, stride=1, padding=0)
+
+    def forward(self, x):
+        identity = x
+        n,c,h,w = x.size()
+        x_h = self.pool_h(x)
+        x_w = self.pool_w(x).permute(0,1,3,2)
+        y = torch.cat([x_h, x_w], dim=2)
+        y = self.conv1(y)
+        y = self.bn1(y)
+        y = self.act(y)
+        x_h, x_w = torch.split(y, [h, w], dim=2)
+        x_w = x_w.permute(0,1,3,2)
+        a_h = self.conv_h(x_h).sigmoid()
+        a_w = self.conv_w(x_w).sigmoid()
+        out = identity * a_w * a_h
+        return out
+
+# ASPP
+class ASPP(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ASPP, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, 1)
+        self.conv2 = nn.Conv2d(in_channels, out_channels, 3, padding=6, dilation=6)
+        self.conv3 = nn.Conv2d(in_channels, out_channels, 3, padding=12, dilation=12)
+        self.conv4 = nn.Conv2d(in_channels, out_channels, 3, padding=18, dilation=18)
+        self.project = nn.Conv2d(out_channels * 4, out_channels, 1)
+
+    def forward(self, x):
+        x1 = self.conv1(x)
+        x2 = self.conv2(x)
+        x3 = self.conv3(x)
+        x4 = self.conv4(x)
+        x = torch.cat((x1, x2, x3, x4), dim=1)
+        return self.project(x)
 
 class SCBAM(nn.Module):
     def __init__(self, channels, ratio=16, kernel_size=7):
