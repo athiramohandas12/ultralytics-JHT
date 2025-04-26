@@ -42,6 +42,7 @@ from .block import (
     SCBAM,
     SimAM,
     C2f2CA, 
+    C2f2SPA,
     ASPP,
     SEBlock,
     C2fAttn,

@@ -53,7 +53,8 @@ __all__ = (
     "SEBlock",
     "SCBAM",
     "SimAM", 
-    "C2f2CA", 
+    "C2f2CA",
+    "C2f2SPA", 
     "ASPP",
 )
 
@@ -73,6 +74,48 @@ class SimAM(nn.Module):
         n = x.numel() / x.shape[0]
         d = (x - x.mean(dim=[1,2,3], keepdim=True)).pow(2).sum(dim=[1,2,3], keepdim=True) / n
         return x * torch.sigmoid(d / (d + self.e_lambda))
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class MySPAttention(nn.Module):
+    def __init__(self, in_channels, out_channels=None, reduction=8):
+        super(MySPAttention, self).__init__()
+        out_channels = out_channels or in_channels
+        self.query_conv = nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1)
+        self.value_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, x):
+        batch_size, C, width, height = x.size()
+        proj_query = self.query_conv(x).view(batch_size, -1, width * height).permute(0, 2, 1)  # (B, W*H, C')
+        proj_key = self.key_conv(x).view(batch_size, -1, width * height)  # (B, C', W*H)
+        energy = torch.bmm(proj_query, proj_key)  # (B, W*H, W*H)
+        attention = self.softmax(energy)  # (B, W*H, W*H)
+        
+        proj_value = self.value_conv(x).view(batch_size, -1, width * height)  # (B, C, W*H)
+        
+        out = torch.bmm(proj_value, attention.permute(0, 2, 1))  # (B, C, W*H)
+        out = out.view(batch_size, -1, width, height)  # (B, C, W, H)
+        
+        return out
+class C2f2SPA(nn.Module):
+    """C2f block with MySPAttention."""
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = nn.Conv2d(c1, c_, 1, 1)
+        self.cv2 = nn.Conv2d(c_ * (n + 1), c2, 1)
+        self.m = nn.ModuleList(nn.Conv2d(c_, c_, 3, 1, 1, groups=g) for _ in range(n))
+        self.attn = MySPAttention(c2, c2)  # <-- Apply SPAttention at the end
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(len(self.m), 1))
+        for i, m in enumerate(self.m):
+            y.append(m(y[-1]))
+        out = self.cv2(torch.cat(y, 1))
+        return self.attn(out)
 
 class MyCoordAttention(nn.Module):
     def __init__(self, inp, oup, reduction=32):
