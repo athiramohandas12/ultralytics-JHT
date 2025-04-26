@@ -53,7 +53,7 @@ __all__ = (
     "SEBlock",
     "SCBAM",
     "SimAM", 
-    "CoordAttention", 
+    "SCoordAttention", 
     "ASPP",
 )
 
@@ -75,7 +75,7 @@ class SimAM(nn.Module):
         return x * torch.sigmoid(d / (d + self.e_lambda))
 
 # CoordAttention
-class CoordAttention(nn.Module):
+class SCoordAttention(nn.Module):
     def __init__(self, inp, oup, reduction=32):
         super().__init__()
         self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
